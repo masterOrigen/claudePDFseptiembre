@@ -4,7 +4,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import streamlit as st
 import google.generativeai as genai
-from langchain_community.vectorstores import FAISS  # Actualizado
+from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
@@ -24,7 +24,7 @@ def get_pdf_text(pdf_docs):
 
 def get_text_chunks(text):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=10000, chunk_overlap=1000)
+        chunk_size=1000, chunk_overlap=200)  # Ajustado
     chunks = splitter.split_text(text)
     return chunks
 
@@ -36,10 +36,14 @@ def get_vector_store(chunks):
 
 def get_conversational_chain():
     prompt_template = """
-    Answer the question as detailed as possible from the provided context, make sure to provide all the details, if the answer is not in
-    provided context just say, "answer is not available in the context", don't provide the wrong answer\n\n
-    Context:\n {context}?\n
-    Question: \n{question}\n
+    Use the following pieces of context to answer the question at the end. 
+    If you don't know the answer, just say that you don't know, don't try to make up an answer.
+    If the context doesn't contain a direct answer, try to infer based on the available information.
+    Always strive to provide the most relevant and accurate information possible.
+
+    Context: {context}
+
+    Question: {question}
 
     Answer:
     """
@@ -47,6 +51,7 @@ def get_conversational_chain():
     model = ChatGoogleGenerativeAI(model="gemini-pro",
                                    client=genai,
                                    temperature=0.3,
+                                   max_output_tokens=2048,  # Ajustado
                                    )
     prompt = PromptTemplate(template=prompt_template,
                             input_variables=["context", "question"])
@@ -62,21 +67,21 @@ def user_input(user_question):
         model="models/embedding-001")  # type: ignore
 
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True) 
-    docs = new_db.similarity_search(user_question)
+    docs = new_db.similarity_search(user_question, k=5)  # Aumentado a 5
+
+    st.write(f"Found {len(docs)} relevant documents")
+    for i, doc in enumerate(docs):
+        st.write(f"Document {i+1} content: {doc.page_content[:100]}...")  # Log primeros 100 caracteres
 
     chain = get_conversational_chain()
 
-    response = chain.invoke(  # Actualizado
+    response = chain.invoke(
         {"input_documents": docs, "question": user_question}, return_only_outputs=True)
 
-    print(response)
     return response
 
 def main():
-    st.set_page_config(
-        page_title="Gemini PDF Chatbot",
-        page_icon="🤖"
-    )
+    st.set_page_config(page_title="Gemini PDF Chatbot", page_icon="🤖")
 
     with st.sidebar:
         st.title("Menu:")
@@ -85,7 +90,9 @@ def main():
         if st.button("Submit & Process"):
             with st.spinner("Processing..."):
                 raw_text = get_pdf_text(pdf_docs)
+                st.write(f"Extracted {len(raw_text)} characters of text")
                 text_chunks = get_text_chunks(raw_text)
+                st.write(f"Created {len(text_chunks)} text chunks")
                 get_vector_store(text_chunks)
                 st.success("Done")
 
@@ -110,9 +117,8 @@ def main():
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 response = user_input(prompt)
-                placeholder = st.empty()
-                full_response = response['output_text']  # Actualizado
-                placeholder.markdown(full_response)
+                full_response = response['output_text']
+                st.write(full_response)
         if response is not None:
             message = {"role": "assistant", "content": full_response}
             st.session_state.messages.append(message)
