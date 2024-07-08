@@ -2,6 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 import PyPDF2
 import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 # Configurar la API de Gemini usando una variable de entorno
 api_key = os.getenv("GEMINI_API_KEY")
@@ -41,16 +45,26 @@ if uploaded_file is not None:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Generar respuesta usando Gemini
-        response = genai.generate_content(
-            model="models/gemini-pro",
-            contents=f"Basado en el siguiente texto de un PDF: {pdf_text}\n\nPregunta: {prompt}\nRespuesta:",
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=2048,
+        try:
+            # Generar respuesta usando Gemini
+            response = genai.generate_content(
+                model="models/gemini-pro",
+                contents=f"Basado en el siguiente texto de un PDF: {pdf_text}\n\nPregunta: {prompt}\nRespuesta:",
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.3,
+                    max_output_tokens=2048,
+                )
             )
-        )
 
-        with st.chat_message("assistant"):
-            st.markdown(response.text)
-        st.session_state.messages.append({"role": "assistant", "content": response.text})
+            if response.parts:
+                response_text = response.parts[0].text
+                with st.chat_message("assistant"):
+                    st.markdown(response_text)
+                st.session_state.messages.append({"role": "assistant", "content": response_text})
+            else:
+                st.error("No se pudo generar una respuesta.")
+        except Exception as e:
+            st.error(f"Ocurrió un error al generar la respuesta: {str(e)}")
+
+else:
+    st.write("Por favor, sube un archivo PDF para comenzar.")
