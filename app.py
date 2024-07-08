@@ -10,6 +10,10 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from dotenv import load_dotenv
 
+# Plantillas HTML para los mensajes (movidas al inicio)
+user_template = '<div style="background-color: #e6f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>Human:</strong> {{MSG}}</div>'
+bot_template = '<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>AI:</strong> {{MSG}}</div>'
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -98,10 +102,6 @@ with st.sidebar:
 user_question = st.text_input("Ask a question about your documents:")
 if user_question:
     handle_userinput(user_question)
-
-# Plantillas HTML para los mensajes
-user_template = '<div style="background-color: #e6f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>Human:</strong> {{MSG}}</div>'
-bot_template = '<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>AI:</strong> {{MSG}}</div>'
 
 # Initialize session state
 if 'conversation' not in st.session_state:
