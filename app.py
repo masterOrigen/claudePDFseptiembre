@@ -14,7 +14,20 @@ load_dotenv()
 os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Las funciones get_pdf_text y get_text_chunks permanecen sin cambios
+# Funciones auxiliares
+def get_pdf_text(pdf_docs):
+    text = ""
+    for pdf in pdf_docs:
+        pdf_reader = PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+    return text
+
+def get_text_chunks(text):
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=10000, chunk_overlap=1000)
+    chunks = splitter.split_text(text)
+    return chunks
 
 def get_vector_store(chunks):
     embeddings = GoogleGenerativeAIEmbeddings(
@@ -41,7 +54,9 @@ def get_conversational_chain():
     chain = load_qa_chain(llm=model, chain_type="stuff", prompt=prompt)
     return chain
 
-# La función clear_chat_history permanece sin cambios
+def clear_chat_history():
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Upload some PDFs and ask me a question"}]
 
 def user_input(user_question):
     embeddings = GoogleGenerativeAIEmbeddings(
@@ -58,9 +73,46 @@ def user_input(user_question):
     print(response)
     return response
 
-# La función main permanece sin cambios excepto por esta parte:
+# Configuración de la página
+st.set_page_config(
+    page_title="Gemini PDF Chatbot",
+    page_icon="🤖"
+)
 
-if st.session_state.messages[-1]["role"] != "assistant":
+# Sidebar para cargar archivos PDF
+with st.sidebar:
+    st.title("Menu:")
+    pdf_docs = st.file_uploader(
+        "Upload your PDF Files and Click on the Submit & Process Button", accept_multiple_files=True)
+    if st.button("Submit & Process"):
+        with st.spinner("Processing..."):
+            raw_text = get_pdf_text(pdf_docs)
+            text_chunks = get_text_chunks(raw_text)
+            get_vector_store(text_chunks)
+            st.success("Done")
+
+# Área principal para mostrar mensajes del chat
+st.title("Chat with PDF files using Gemini🤖")
+st.write("Welcome to the chat!")
+st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
+
+# Inicialización del historial de chat
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Upload some PDFs and ask me a question"}]
+
+# Mostrar mensajes del chat
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
+
+# Entrada de chat
+if prompt := st.chat_input():
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.write(prompt)
+
+    # Respuesta del asistente
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             response = user_input(prompt)
@@ -70,9 +122,6 @@ if st.session_state.messages[-1]["role"] != "assistant":
                 full_response += item
                 placeholder.markdown(full_response)
             placeholder.markdown(full_response)
-    if response is not None:
-        message = {"role": "assistant", "content": full_response}
-        st.session_state.messages.append(message)
-
-if __name__ == "__main__":
-    main()
+    
+    # Agregar respuesta al historial
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
