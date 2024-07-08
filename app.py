@@ -29,7 +29,10 @@ def extract_text_from_pdf(pdf_file):
 def get_gemini_response(prompt):
     try:
         model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(
+            temperature=0.1,
+            max_output_tokens=4096,
+        ))
         return response.text
     except Exception as e:
         return f"Error al generar respuesta: {str(e)}"
@@ -37,36 +40,55 @@ def get_gemini_response(prompt):
 def main():
     st.title("Chatbot PDF con Gemini")
 
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+
     uploaded_file = st.file_uploader("Sube un archivo PDF", type="pdf")
 
     if uploaded_file is not None:
-        pdf_text = extract_text_from_pdf(uploaded_file)
-        if pdf_text:
-            st.success(f"PDF procesado. Contenido extraído: {len(pdf_text)} caracteres.")
-            st.session_state.pdf_content = pdf_text
-            
-            # Mostrar los primeros 500 caracteres del contenido del PDF
-            st.text_area("Primeros 500 caracteres del PDF:", pdf_text[:500], height=200)
-        else:
-            st.error("No se pudo procesar el PDF. Intenta con otro archivo.")
+        if 'pdf_content' not in st.session_state:
+            pdf_text = extract_text_from_pdf(uploaded_file)
+            if pdf_text:
+                st.success(f"PDF procesado exitosamente. Contenido extraído: {len(pdf_text)} caracteres.")
+                st.session_state.pdf_content = pdf_text
+            else:
+                st.error("No se pudo procesar el PDF. Intenta con otro archivo.")
 
     if 'pdf_content' in st.session_state:
-        user_question = st.text_input("Haz una pregunta sobre el PDF:")
-        if user_question:
-            prompt = f"""
-            Contenido del documento PDF:
-            {st.session_state.pdf_content[:4000]}
+        st.write("Ahora puedes hacer preguntas sobre el contenido del PDF.")
+        
+        # Mostrar el historial de chat
+        for entry in st.session_state.chat_history:
+            st.write(f"Pregunta: {entry['question']}")
+            st.write(f"Respuesta: {entry['answer']}")
+            st.markdown("---")
 
-            Pregunta: {user_question}
+        # Área de texto para la nueva pregunta
+        user_question = st.text_area("Escribe tu pregunta aquí:", height=100)
+        if st.button("Enviar pregunta"):
+            if user_question:
+                prompt = f"""
+                Basándote en el siguiente contenido de un documento PDF, responde la pregunta de manera detallada y extensa. 
+                Utiliza toda la información relevante del documento para proporcionar una respuesta completa y exhaustiva.
+                Si la información no está directamente en el contenido, intenta inferir o relacionar conceptos basándote en lo que sabes.
+                Si realmente no hay información suficiente, indica que no puedes encontrar esa información específica en el documento proporcionado.
 
-            Por favor, responde la pregunta basándote únicamente en la información proporcionada en el contenido del documento.
-            Si la información no está disponible, indica que no puedes encontrar esa información en el documento proporcionado.
-            """
+                Contenido del documento PDF:
+                {st.session_state.pdf_content[:8000]}
 
-            response = get_gemini_response(prompt)
-            
-            st.write("Respuesta:")
-            st.write(response)
+                Pregunta: {user_question}
+
+                Respuesta detallada:
+                """
+
+                response = get_gemini_response(prompt)
+                
+                st.session_state.chat_history.append({
+                    "question": user_question,
+                    "answer": response
+                })
+                
+                st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
