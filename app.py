@@ -14,7 +14,6 @@ load_dotenv()
 os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Funciones auxiliares
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -25,7 +24,7 @@ def get_pdf_text(pdf_docs):
 
 def get_text_chunks(text):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=10000, chunk_overlap=1000)
+        chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_text(text)
     return chunks
 
@@ -34,14 +33,16 @@ def get_vector_store(chunks):
         model="models/embedding-001")  # type: ignore
     vector_store = FAISS.from_texts(chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
+    st.success(f"Vector store created with {len(chunks)} chunks.")
 
 def get_conversational_chain():
     prompt_template = """
-    Answer the question as detailed as possible from the provided context, make sure to provide all the details, if the answer is not in
-    provided context just say, "answer is not available in the context", don't provide the wrong answer\n\n
-    Context:\n {context}?\n
-    Question: \n{question}\n
+    Use the following pieces of context to answer the question at the end. 
+    If you don't know the answer, just say that you don't know, don't try to make up an answer.
 
+    {context}
+
+    Question: {question}
     Answer:
     """
 
@@ -59,27 +60,27 @@ def clear_chat_history():
         {"role": "assistant", "content": "Upload some PDFs and ask me a question"}]
 
 def user_input(user_question):
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001")  # type: ignore
+    try:
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/embedding-001")  # type: ignore
 
-    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True) 
-    docs = new_db.similarity_search(user_question)
+        new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+        docs = new_db.similarity_search(user_question, k=4)  # Aumentamos a 4 documentos similares
+        
+        st.write(f"Found {len(docs)} relevant documents.")
+        
+        chain = get_conversational_chain()
 
-    chain = get_conversational_chain()
+        response = chain.invoke(
+            {"input_documents": docs, "question": user_question}, return_only_outputs=True)
 
-    response = chain.invoke(
-        {"input_documents": docs, "question": user_question}, return_only_outputs=True)
+        return response
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return {"output_text": "I'm sorry, but I encountered an error while processing your question."}
 
-    print(response)
-    return response
+st.set_page_config(page_title="Gemini PDF Chatbot", page_icon="🤖")
 
-# Configuración de la página
-st.set_page_config(
-    page_title="Gemini PDF Chatbot",
-    page_icon="🤖"
-)
-
-# Sidebar para cargar archivos PDF
 with st.sidebar:
     st.title("Menu:")
     pdf_docs = st.file_uploader(
@@ -87,41 +88,32 @@ with st.sidebar:
     if st.button("Submit & Process"):
         with st.spinner("Processing..."):
             raw_text = get_pdf_text(pdf_docs)
+            st.write(f"Extracted {len(raw_text)} characters of text.")
             text_chunks = get_text_chunks(raw_text)
+            st.write(f"Created {len(text_chunks)} text chunks.")
             get_vector_store(text_chunks)
-            st.success("Done")
 
-# Área principal para mostrar mensajes del chat
 st.title("Chat with PDF files using Gemini🤖")
 st.write("Welcome to the chat!")
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
-# Inicialización del historial de chat
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Upload some PDFs and ask me a question"}]
 
-# Mostrar mensajes del chat
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-# Entrada de chat
 if prompt := st.chat_input():
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
 
-    # Respuesta del asistente
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             response = user_input(prompt)
-            placeholder = st.empty()
-            full_response = ''
-            for item in response['output_text']:
-                full_response += item
-                placeholder.markdown(full_response)
-            placeholder.markdown(full_response)
+            full_response = response['output_text']
+            st.write(full_response)
     
-    # Agregar respuesta al historial
     st.session_state.messages.append({"role": "assistant", "content": full_response})
