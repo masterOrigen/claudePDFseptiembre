@@ -1,59 +1,72 @@
-import os
-from PyPDF2 import PdfReader
 import streamlit as st
+import pdfplumber
 import google.generativeai as genai
-from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
+import os
 
+# Cargar variables de entorno
 load_dotenv()
+
+# Configurar Gemini API
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    st.error("No se encontró la GOOGLE_API_KEY en las variables de entorno")
+    st.stop()
+
 genai.configure(api_key=GOOGLE_API_KEY)
 
-def get_pdf_text(pdf_doc):
-    pdf_reader = PdfReader(pdf_doc)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
+def extract_text_from_pdf(pdf_file):
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            text = ""
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+        return text
+    except Exception as e:
+        st.error(f"Error al extraer texto del PDF: {e}")
+        return None
 
-def get_gemini_response(question, pdf_content):
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
-    prompt = f"""
-    Eres un asistente experto en análisis de documentos PDF. Se te ha proporcionado el contenido completo de un documento PDF.
-    Utiliza toda la información disponible en el documento para responder la siguiente pregunta de manera detallada y precisa.
-    Si la información no está en el documento, indica que no puedes encontrar esa información específica en el PDF proporcionado.
-
-    Contenido del PDF:
-    {pdf_content}
-
-    Pregunta: {question}
-
-    Respuesta detallada:
-    """
-    response = model.invoke(prompt)
-    return response
+def get_gemini_response(prompt):
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error al generar respuesta: {str(e)}"
 
 def main():
-    st.set_page_config(page_title="Chatbot PDF con Gemini", page_icon="📚")
+    st.title("Chatbot PDF con Gemini")
 
-    st.title("Chatbot PDF con Gemini 📚")
-    st.write("Sube un PDF y haz preguntas sobre su contenido.")
+    uploaded_file = st.file_uploader("Sube un archivo PDF", type="pdf")
 
-    pdf_doc = st.file_uploader("Sube tu archivo PDF", type="pdf")
-    
-    if pdf_doc is not None:
-        with st.spinner("Procesando el PDF..."):
-            pdf_content = get_pdf_text(pdf_doc)
-            st.success("PDF procesado con éxito. Ahora puedes hacer preguntas sobre su contenido.")
-            st.session_state.pdf_content = pdf_content
+    if uploaded_file is not None:
+        pdf_text = extract_text_from_pdf(uploaded_file)
+        if pdf_text:
+            st.success(f"PDF procesado. Contenido extraído: {len(pdf_text)} caracteres.")
+            st.session_state.pdf_content = pdf_text
+            
+            # Mostrar los primeros 500 caracteres del contenido del PDF
+            st.text_area("Primeros 500 caracteres del PDF:", pdf_text[:500], height=200)
+        else:
+            st.error("No se pudo procesar el PDF. Intenta con otro archivo.")
 
     if 'pdf_content' in st.session_state:
         user_question = st.text_input("Haz una pregunta sobre el PDF:")
         if user_question:
-            with st.spinner("Generando respuesta..."):
-                response = get_gemini_response(user_question, st.session_state.pdf_content)
-                st.write("Respuesta:")
-                st.write(response)
+            prompt = f"""
+            Contenido del documento PDF:
+            {st.session_state.pdf_content[:4000]}
+
+            Pregunta: {user_question}
+
+            Por favor, responde la pregunta basándote únicamente en la información proporcionada en el contenido del documento.
+            Si la información no está disponible, indica que no puedes encontrar esa información en el documento proporcionado.
+            """
+
+            response = get_gemini_response(prompt)
+            
+            st.write("Respuesta:")
+            st.write(response)
 
 if __name__ == "__main__":
     main()
