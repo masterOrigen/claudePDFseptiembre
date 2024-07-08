@@ -33,10 +33,11 @@ def get_vector_store(chunks):
         model="models/embedding-001")  # type: ignore
     vector_store = FAISS.from_texts(chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
+    return vector_store
 
 def get_conversational_chain():
     prompt_template = """
-    Basándote en la siguiente información, proporciona una respuesta detallada y extensa a la pregunta. 
+    Basándote en la siguiente información extraída de los documentos PDF, proporciona una respuesta detallada y extensa a la pregunta. 
     Utiliza todos los detalles relevantes del contexto para elaborar una respuesta completa y exhaustiva.
     Si la información no está directamente en el contexto, intenta inferir o extrapolar basándote en lo que sabes.
     Si realmente no tienes suficiente información para responder, indica que necesitas más detalles para proporcionar una respuesta precisa.
@@ -69,6 +70,9 @@ def user_input(user_question):
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True) 
     docs = new_db.similarity_search(user_question, k=5)
 
+    context = "\n".join([doc.page_content for doc in docs])
+    st.sidebar.write(f"Contexto recuperado (primeros 500 caracteres): {context[:500]}...")
+
     chain = get_conversational_chain()
 
     response = chain.invoke(
@@ -86,9 +90,11 @@ def main():
         if st.button("Procesar"):
             with st.spinner("Procesando documentos..."):
                 raw_text = get_pdf_text(pdf_docs)
+                st.sidebar.write(f"Texto extraído (primeros 500 caracteres): {raw_text[:500]}...")
                 text_chunks = get_text_chunks(raw_text)
-                get_vector_store(text_chunks)
-                st.success("¡Documentos procesados con éxito!")
+                st.sidebar.write(f"Número de chunks creados: {len(text_chunks)}")
+                vector_store = get_vector_store(text_chunks)
+                st.success(f"¡Documentos procesados con éxito! Se crearon {len(text_chunks)} chunks.")
                 clear_chat_history()
 
     st.title("Chatbot PDF con Gemini 📚")
