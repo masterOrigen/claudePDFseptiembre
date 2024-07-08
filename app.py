@@ -47,17 +47,17 @@ if uploaded_file is not None:
 
         try:
             # Generar respuesta usando Gemini
-            response = genai.generate_content(
-                model="models/gemini-pro",
-                contents=f"Basado en el siguiente texto de un PDF: {pdf_text}\n\nPregunta: {prompt}\nRespuesta:",
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(
+                f"Basado en el siguiente texto de un PDF: {pdf_text}\n\nPregunta: {prompt}\nRespuesta:",
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.3,
                     max_output_tokens=2048,
                 )
             )
 
-            if response.parts:
-                response_text = response.parts[0].text
+            if response.text:
+                response_text = response.text
                 with st.chat_message("assistant"):
                     st.markdown(response_text)
                 st.session_state.messages.append({"role": "assistant", "content": response_text})
