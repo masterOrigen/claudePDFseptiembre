@@ -6,7 +6,8 @@ import streamlit as st
 import google.generativeai as genai
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains.question_answering import load_qa_chain
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 
@@ -14,109 +15,58 @@ load_dotenv()
 os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-def get_pdf_text(pdf_docs):
-    text = ""
-    for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-    return text
+# Las funciones get_pdf_text, get_text_chunks, y get_vector_store permanecen iguales
 
-def get_text_chunks(text):
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000, chunk_overlap=200)
-    chunks = splitter.split_text(text)
-    return chunks
+def get_conversation_chain(vectorstore):
+    llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    
+    memory = ConversationBufferMemory(
+        memory_key='chat_history', return_messages=True)
+    
+    conversation_chain = ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=vectorstore.as_retriever(),
+        memory=memory
+    )
+    return conversation_chain
 
-def get_vector_store(chunks):
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001")  # type: ignore
-    vector_store = FAISS.from_texts(chunks, embedding=embeddings)
-    vector_store.save_local("faiss_index")
-    st.success(f"Vector store created with {len(chunks)} chunks.")
+def handle_userinput(user_question):
+    response = st.session_state.conversation({'question': user_question})
+    st.session_state.chat_history = response['chat_history']
+    
+    for i, message in enumerate(st.session_state.chat_history):
+        if i % 2 == 0:
+            st.write(user_template.replace("{{MSG}}", message.content), unsafe_allow_html=True)
+        else:
+            st.write(bot_template.replace("{{MSG}}", message.content), unsafe_allow_html=True)
 
-def get_conversational_chain():
-    prompt_template = """
-    You are an AI assistant tasked with answering questions based on the provided context. 
-    Use the following pieces of context to answer the user's question. 
-    If the answer is not in the context, say "I don't have enough information to answer that question."
-
-    Context: {context}
-
-    Human: {question}
-    AI Assistant: Let me analyze the context and provide an answer to your question.
-    """
-
-    model = ChatGoogleGenerativeAI(model="gemini-pro",
-                                   client=genai,
-                                   temperature=0.3,
-                                   max_output_tokens=2048,
-                                   )
-    prompt = PromptTemplate(template=prompt_template,
-                            input_variables=["context", "question"])
-    chain = load_qa_chain(llm=model, chain_type="stuff", prompt=prompt)
-    return chain
-
-def clear_chat_history():
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Upload some PDFs and ask me a question"}]
-
-def user_input(user_question):
-    try:
-        embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001")  # type: ignore
-
-        new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-        docs = new_db.similarity_search(user_question, k=4)
-        
-        st.write(f"Found {len(docs)} relevant documents.")
-        
-        context = "\n".join([doc.page_content for doc in docs])
-        st.write(f"Context length: {len(context)} characters")
-        
-        chain = get_conversational_chain()
-
-        response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
-
-        return response["output_text"]
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        return "I'm sorry, but I encountered an error while processing your question."
-
-st.set_page_config(page_title="Gemini PDF Chatbot", page_icon="🤖")
+# Configuración de la página y sidebar
+st.set_page_config(page_title="Chat with multiple PDFs", page_icon=":books:")
 
 with st.sidebar:
-    st.title("Menu:")
+    st.subheader("Your documents")
     pdf_docs = st.file_uploader(
-        "Upload your PDF Files and Click on the Submit & Process Button", accept_multiple_files=True)
-    if st.button("Submit & Process"):
-        with st.spinner("Processing..."):
+        "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
+    if st.button("Process"):
+        with st.spinner("Processing"):
+            # get pdf text
             raw_text = get_pdf_text(pdf_docs)
-            st.write(f"Extracted {len(raw_text)} characters of text.")
+
+            # get the text chunks
             text_chunks = get_text_chunks(raw_text)
-            st.write(f"Created {len(text_chunks)} text chunks.")
-            get_vector_store(text_chunks)
 
-st.title("Chat with PDF files using Gemini🤖")
-st.write("Welcome to the chat!")
-st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
+            # create vector store
+            vectorstore = get_vector_store(text_chunks)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Upload some PDFs and ask me a question"}]
+            # create conversation chain
+            st.session_state.conversation = get_conversation_chain(vectorstore)
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
+# Interfaz principal
+st.header("Chat with multiple PDFs :books:")
+user_question = st.text_input("Ask a question about your documents:")
+if user_question:
+    handle_userinput(user_question)
 
-if prompt := st.chat_input():
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = user_input(prompt)
-            st.write(response)
-    
-    st.session_state.messages.append({"role": "assistant", "content": response})
+# Plantillas HTML para los mensajes
+user_template = '<div style="background-color: #e6f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>Human:</strong> {{MSG}}</div>'
+bot_template = '<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>AI:</strong> {{MSG}}</div>'
