@@ -37,18 +37,20 @@ def get_vector_store(chunks):
 
 def get_conversational_chain():
     prompt_template = """
-    Use the following pieces of context to answer the question at the end. 
-    If you don't know the answer, just say that you don't know, don't try to make up an answer.
+    You are an AI assistant tasked with answering questions based on the provided context. 
+    Use the following pieces of context to answer the user's question. 
+    If the answer is not in the context, say "I don't have enough information to answer that question."
 
-    {context}
+    Context: {context}
 
-    Question: {question}
-    Answer:
+    Human: {question}
+    AI Assistant: Let me analyze the context and provide an answer to your question.
     """
 
     model = ChatGoogleGenerativeAI(model="gemini-pro",
                                    client=genai,
                                    temperature=0.3,
+                                   max_output_tokens=2048,
                                    )
     prompt = PromptTemplate(template=prompt_template,
                             input_variables=["context", "question"])
@@ -65,19 +67,21 @@ def user_input(user_question):
             model="models/embedding-001")  # type: ignore
 
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-        docs = new_db.similarity_search(user_question, k=4)  # Aumentamos a 4 documentos similares
+        docs = new_db.similarity_search(user_question, k=4)
         
         st.write(f"Found {len(docs)} relevant documents.")
         
+        context = "\n".join([doc.page_content for doc in docs])
+        st.write(f"Context length: {len(context)} characters")
+        
         chain = get_conversational_chain()
 
-        response = chain.invoke(
-            {"input_documents": docs, "question": user_question}, return_only_outputs=True)
+        response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
 
-        return response
+        return response["output_text"]
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
-        return {"output_text": "I'm sorry, but I encountered an error while processing your question."}
+        return "I'm sorry, but I encountered an error while processing your question."
 
 st.set_page_config(page_title="Gemini PDF Chatbot", page_icon="🤖")
 
@@ -113,7 +117,6 @@ if prompt := st.chat_input():
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             response = user_input(prompt)
-            full_response = response['output_text']
-            st.write(full_response)
+            st.write(response)
     
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    st.session_state.messages.append({"role": "assistant", "content": response})
