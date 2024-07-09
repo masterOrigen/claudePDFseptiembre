@@ -30,7 +30,7 @@ def get_gemini_response(prompt):
     try:
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(
-            temperature=0.3,
+            temperature=0.2,
             max_output_tokens=2000,
         ))
         return response.text
@@ -38,7 +38,7 @@ def get_gemini_response(prompt):
         return f"Error al generar respuesta: {str(e)}"
 
 def main():
-    st.title("Chatbot PDF con Gemini")
+    st.title("PDF Insights Chat")
 
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
