@@ -1,4 +1,4 @@
-import streamlit as st
+que deseas interactuarimport streamlit as st
 import pdfplumber
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -43,7 +43,7 @@ def main():
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
 
-    uploaded_file = st.file_uploader("Sube un archivo PDF", type="pdf")
+    uploaded_file = st.file_uploader("Sube un archivo PDF con el que deseas interactuar", type="pdf")
 
     if uploaded_file is not None:
         if 'pdf_content' not in st.session_state:
