@@ -1,4 +1,4 @@
-streamlit as st
+import streamlit as st
 import pdfplumber
 import google.generativeai as genai
 from dotenv import load_dotenv
