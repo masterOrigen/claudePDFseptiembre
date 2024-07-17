@@ -11,8 +11,20 @@ st.markdown(
     .stApp {
         background-color: white;
     }
-    .stTitle {
+    .st-emotion-cache-10trblm {
         color: black;
+    }
+    /* Estilo para todos los textos */
+    .stApp p, .stApp label, .stApp div {
+        color: black !important;
+    }
+    /* Estilo específico para el botón de carga de archivos */
+    .stFileUploader label {
+        color: black !important;
+    }
+    /* Estilo para los mensajes de éxito y error */
+    .stSuccess, .stError {
+        color: black !important;
     }
     </style>
     """,
