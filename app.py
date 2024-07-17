@@ -13,7 +13,7 @@ st.markdown(
     }
     /* Estilo para el header */
     .stApp > header {
-        background-color: red;
+        background-color: white;
     }
     .st-emotion-cache-10trblm {
         color: black;
