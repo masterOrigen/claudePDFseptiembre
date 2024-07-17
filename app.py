@@ -53,7 +53,7 @@ def get_gemini_response(prompt):
         return f"Error al generar respuesta: {str(e)}"
 
 def main():
-    st.title("PDF Insights Chat")
+    st.markdown("<h2 style='color: black;'>PDF Insights Chat</h2>", unsafe_allow_html=True)
 
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
