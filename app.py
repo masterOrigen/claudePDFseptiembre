@@ -16,7 +16,7 @@ st.markdown(
     }
     /* Estilo para todos los textos */
     .stApp p, .stApp label, .stApp div {
-        color: black !important;
+        color: black;
     }
     /* Estilo específico para el botón de carga de archivos */
     .stFileUploader label {
