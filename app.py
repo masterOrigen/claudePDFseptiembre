@@ -28,14 +28,14 @@ st.markdown(
     }
     /* Estilo para el botón "Enviar pregunta" */
     .stButton > button {
-        color: white !important;
-        background-color: #0066cc !important;
-        border-color: #0066cc !important;
+        color: #ffffff !important;
+        background-color: #d72529 !important;
+        border-color: #d72529 !important;
     }
     .stButton > button:hover {
         color: white !important;
-        background-color: #005299 !important;
-        border-color: #005299 !important;
+        background-color: #000000 !important;
+        border-color: #000000 !important;
     }
     </style>
     """,
