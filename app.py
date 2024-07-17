@@ -4,6 +4,21 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import os
 
+# Configurar el estilo
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: white;
+    }
+    .stTitle {
+        color: black;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # Cargar variables de entorno
 load_dotenv()
 
