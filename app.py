@@ -1,6 +1,6 @@
 import streamlit as st
 import pdfplumber
-import google.generativeai as genai
+from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
 
@@ -49,13 +49,13 @@ st.markdown(
 # Cargar variables de entorno
 load_dotenv()
 
-# Configurar Gemini API
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if not GOOGLE_API_KEY:
-    st.error("No se encontró la GOOGLE_API_KEY en las variables de entorno")
+# Configurar Claude API
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
+if not CLAUDE_API_KEY:
+    st.error("No se encontró la CLAUDE_API_KEY en las variables de entorno")
     st.stop()
 
-genai.configure(api_key=GOOGLE_API_KEY)
+anthropic = Anthropic(api_key=CLAUDE_API_KEY)
 
 def extract_text_from_pdf(pdf_file):
     try:
@@ -68,19 +68,22 @@ def extract_text_from_pdf(pdf_file):
         st.error(f"Error al extraer texto del PDF: {e}")
         return None
 
-def get_gemini_response(prompt):
+def get_claude_response(prompt):
     try:
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(
+        response = anthropic.messages.create(
+            model="claude-3-sonnet-20240229",
+            max_tokens=2000,
             temperature=0.2,
-            max_output_tokens=2000,
-        ))
-        return response.text
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.content[0].text
     except Exception as e:
         return f"Error al generar respuesta: {str(e)}"
 
 def main():
-    st.markdown("<h2 style='color: black;'>PDF Insights Chat</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: black;'>PDF Insights Chat con Claude 3.5 Sonnet</h2>", unsafe_allow_html=True)
 
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
@@ -123,7 +126,7 @@ def main():
                 Respuesta detallada:
                 """
 
-                response = get_gemini_response(prompt)
+                response = get_claude_response(prompt)
                 
                 st.session_state.chat_history.append({
                     "question": user_question,
