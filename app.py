@@ -41,6 +41,10 @@ st.markdown(
         background-color: #bf0811 !important;
         border-color: #bf0811 !important;
     }
+    /* Estilo para el indicador de carga */
+    .stSpinner > div {
+        border-top-color: #d72529 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -68,15 +72,13 @@ def extract_text_from_pdf(pdf_file):
         st.error(f"Error al extraer texto del PDF: {e}")
         return None
 
-def get_claude_response(prompt):
+def get_claude_response(messages):
     try:
         response = anthropic.messages.create(
             model="claude-3-sonnet-20240229",
-            max_tokens=2000,
+            max_tokens=4096,  # Aumentado para obtener respuestas más largas
             temperature=0.2,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+            messages=messages
         )
         return response.content[0].text
     except Exception as e:
@@ -87,19 +89,20 @@ def main():
 
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
+    if 'pdf_content' not in st.session_state:
+        st.session_state.pdf_content = None
 
     uploaded_file = st.file_uploader("Sube un archivo PDF con el que deseas interactuar", type="pdf")
 
-    if uploaded_file is not None:
-        if 'pdf_content' not in st.session_state:
-            pdf_text = extract_text_from_pdf(uploaded_file)
-            if pdf_text:
-                st.success(f"PDF procesado exitosamente. Contenido extraído: {len(pdf_text)} caracteres.")
-                st.session_state.pdf_content = pdf_text
-            else:
-                st.error("No se pudo procesar el PDF. Intenta con otro archivo.")
+    if uploaded_file is not None and st.session_state.pdf_content is None:
+        pdf_text = extract_text_from_pdf(uploaded_file)
+        if pdf_text:
+            st.success(f"PDF procesado exitosamente. Contenido extraído: {len(pdf_text)} caracteres.")
+            st.session_state.pdf_content = pdf_text
+        else:
+            st.error("No se pudo procesar el PDF. Intenta con otro archivo.")
 
-    if 'pdf_content' in st.session_state:
+    if st.session_state.pdf_content:
         st.write("Ahora puedes hacer preguntas sobre el contenido del PDF.")
         
         # Mostrar el historial de chat
@@ -112,26 +115,19 @@ def main():
         user_question = st.text_area("Escribe tu pregunta aquí:", height=100)
         if st.button("Enviar pregunta"):
             if user_question:
-                prompt = f"""
-                Basándote en el siguiente contenido de un documento PDF, responde la pregunta de manera detallada y extensa. 
-                Utiliza toda la información relevante del documento para proporcionar una respuesta completa y exhaustiva.
-                Si la información no está directamente en el contenido, intenta inferir o relacionar conceptos basándote en lo que sabes.
-                Si realmente no hay información suficiente, indica que no puedes encontrar esa información específica en el documento proporcionado.
-
-                Contenido del documento PDF:
-                {st.session_state.pdf_content[:8000]}
-
-                Pregunta: {user_question}
-
-                Respuesta detallada:
-                """
-
-                response = get_claude_response(prompt)
-                
-                st.session_state.chat_history.append({
-                    "question": user_question,
-                    "answer": response
-                })
+                with st.spinner("Claude está pensando..."):
+                    messages = [
+                        {"role": "system", "content": f"Eres un asistente útil que responde preguntas basadas en el siguiente contenido de un documento PDF:\n\n{st.session_state.pdf_content[:8000]}"},
+                        *[{"role": "user" if i % 2 == 0 else "assistant", "content": msg} for i, msg in enumerate(sum([(entry['question'], entry['answer']) for entry in st.session_state.chat_history], ()))]
+                    ]
+                    messages.append({"role": "user", "content": user_question})
+                    
+                    response = get_claude_response(messages)
+                    
+                    st.session_state.chat_history.append({
+                        "question": user_question,
+                        "answer": response
+                    })
                 
                 st.experimental_rerun()
 
