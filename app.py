@@ -4,7 +4,51 @@ from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
 
-# [El código de estilo permanece igual]
+# Configurar el estilo
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: white;
+    }
+    /* Estilo para el header */
+    .stApp > header {
+        background-color: white;
+    }
+    .st-emotion-cache-10trblm {
+        color: black;
+    }
+    /* Estilo para todos los textos */
+    .stApp p, .stApp label, .stApp div {
+        color: black;
+    }
+    /* Estilo específico para el botón de carga de archivos */
+    .stFileUploader label {
+        color: black !important;
+    }
+    /* Estilo para los mensajes de éxito y error */
+    .stSuccess, .stError {
+        color: black !important;
+    }
+    /* Estilo para el botón "Enviar pregunta" */
+    .stButton > button {
+        color: #ffffff !important;
+        background-color: #d72529 !important;
+        border-color: #d72529 !important;
+    }
+    .stButton > button:hover {
+        color: white !important;
+        background-color: #bf0811 !important;
+        border-color: #bf0811 !important;
+    }
+    /* Estilo para el indicador de carga */
+    .stSpinner > div {
+        border-top-color: #d72529 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # Cargar variables de entorno
 load_dotenv()
@@ -18,7 +62,15 @@ if not CLAUDE_API_KEY:
 anthropic = Anthropic(api_key=CLAUDE_API_KEY)
 
 def extract_text_from_pdf(pdf_file):
-    # [Esta función permanece igual]
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            text = ""
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+        return text
+    except Exception as e:
+        st.error(f"Error al extraer texto del PDF: {e}")
+        return None
 
 def get_claude_response(messages, system_prompt):
     try:
