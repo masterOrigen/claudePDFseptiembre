@@ -86,7 +86,6 @@ def get_claude_response(messages, system_prompt):
         return f"Error al generar respuesta: {str(e)}"
 
 def main():
-    st.markdown("<h2 style='color: black;'>PDF Insights Chat con Claude 3.5 Sonnet</h2>", unsafe_allow_html=True)
 
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
@@ -119,7 +118,7 @@ def main():
         
         if st.button("Enviar pregunta"):
             if user_question:
-                with st.spinner("Claude está pensando..."):
+                with st.spinner("La IA está pensando..."):
                     system_prompt = f"Eres un asistente útil que responde preguntas basadas en el siguiente contenido de un documento PDF:\n\n{st.session_state.pdf_content[:8000]}"
                     
                     messages = [
