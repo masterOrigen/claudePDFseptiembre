@@ -75,7 +75,7 @@ def extract_text_from_pdf(pdf_file):
 def get_claude_response(messages, system_prompt):
     try:
         response = anthropic.messages.create(
-            model="claude-3-5-sonnet-20240620",
+            model="claude-sonnet-4-5",
             max_tokens=4096,
             temperature=0.2,
             system=system_prompt,
